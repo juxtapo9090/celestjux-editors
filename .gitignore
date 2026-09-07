@@ -1,0 +1,18 @@
+# Vercel's own build output.
+.vercel
+
+# Snapshots the editors take of themselves. The repo is the history now, so a
+# folder of near-identical 500KB index.html copies is 2MB of noise.
+Archived/
+
+# Scratch: canvas screenshots taken while working, contact sheets, and whatever
+# the last debugging pass left lying at the top level.
+_*.png
+crop_*.png
+shot*.png
+walls3d-catalog.png
+walls-pick.png
+wall-block.png
+
+__pycache__/
+*.pyc

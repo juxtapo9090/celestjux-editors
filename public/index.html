@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>CelestJux Editors</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    background: #14161c; color: #e8e6e3;
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 14px; height: 44px; flex: 0 0 auto;
+    background: #1a1d25; border-bottom: 1px solid #2a2e39;
+  }
+  .brand { font-weight: 600; letter-spacing: .2px; white-space: nowrap; }
+  .brand span { color: #6a8cff; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    padding: 6px 14px; border: 0; border-radius: 7px; cursor: pointer;
+    background: transparent; color: #8b8f9a; font: inherit; font-weight: 500;
+  }
+  nav button:hover { color: #e8e6e3; background: #232733; }
+  nav button[aria-selected="true"] { background: #6a8cff; color: #0f1116; }
+  .spacer { flex: 1; }
+  .hint { color: #6d717c; font-size: 12px; white-space: nowrap; }
+  main { flex: 1 1 auto; position: relative; min-height: 0; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  iframe[hidden] { display: none; }
+  @media (max-width: 700px) { .hint { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">CelestJux <span>Editors</span></div>
+  <nav role="tablist">
+    <button role="tab" id="tab-room" aria-selected="true"  aria-controls="frame-room">Room</button>
+    <button role="tab" id="tab-char" aria-selected="false" aria-controls="frame-char">Character</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="hint">room.json + cast.json &mdash; hand both to your agent</div>
+</header>
+
+<main>
+  <iframe id="frame-room" title="Room editor"      src="room/"></iframe>
+  <iframe id="frame-char" title="Character editor" hidden></iframe>
+</main>
+
+<script>
+// Both frames stay mounted once loaded, so switching tabs never discards work.
+// The character frame loads on first use — it carries a 1.4 MB atlas, and paying
+// for that before anyone asks for it just slows the first paint.
+var TABS = {
+  room: { tab: document.getElementById('tab-room'), frame: document.getElementById('frame-room'), src: 'room/' },
+  char: { tab: document.getElementById('tab-char'), frame: document.getElementById('frame-char'), src: 'char/' }
+};
+
+function show(name) {
+  Object.keys(TABS).forEach(function (key) {
+    var t = TABS[key], on = key === name;
+    t.tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.frame.hidden = !on;
+    if (on && !t.frame.getAttribute('src')) t.frame.setAttribute('src', t.src);
+    if (on) setTimeout(function () { t.frame.contentWindow.focus(); }, 0);
+  });
+  if (location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name);
+}
+
+Object.keys(TABS).forEach(function (key) {
+  TABS[key].tab.addEventListener('click', function () { show(key); });
+});
+
+show(TABS[location.hash.slice(1)] ? location.hash.slice(1) : 'room');
+</script>
+
+</body>
+</html>

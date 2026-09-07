@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CelestJux — Character Editor</title>
+<style>
+  :root{
+    --bg:#12151c; --panel:#1a1f2a; --panel2:#212836; --line:#2e3648;
+    --ink:#e6ebf5; --dim:#8b97ad; --accent:#1abc9c; --warn:#e74c3c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:13px/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+       display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;flex:none;
+         background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:15px;font-weight:650;letter-spacing:.2px}
+  header .sub{color:var(--dim);font-size:12px}
+  .grow{flex:1}
+  button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+         border-radius:6px;padding:6px 11px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button:disabled{opacity:.32;cursor:default;border-color:var(--line)}
+  button.icon{font-size:16px;line-height:1;padding:5px 10px}
+  button.primary{background:var(--accent);color:#08110e;border-color:var(--accent);font-weight:600}
+  button.ghost{background:transparent}
+  input[type=text],input[type=number],select{background:#10131a;color:var(--ink);
+    border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;width:100%}
+  input[type=color]{width:38px;height:30px;padding:0;border:1px solid var(--line);
+    border-radius:6px;background:#10131a;cursor:pointer}
+
+  #gate{padding:40px;max-width:720px;margin:0 auto;text-align:center;overflow:auto}
+  #gate h2{margin:0 0 10px}
+  #gate p{color:var(--dim)}
+  #gate .err{color:var(--warn);border:1px solid var(--warn);border-radius:8px;
+             padding:14px;margin-top:18px;text-align:left;white-space:pre-wrap}
+  a{color:var(--accent)}
+
+  #app{display:none;grid-template-columns:210px 1fr 340px;flex:1;min-height:0}
+  .col{overflow:auto;padding:12px}
+  .col + .col{border-left:1px solid var(--line)}
+  h3{font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--dim);
+     margin:0 0 8px;font-weight:600}
+
+  .cast{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+  .cast li{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;
+           border:1px solid transparent;cursor:pointer}
+  .cast li:hover{background:var(--panel)}
+  .cast li.on{background:var(--panel2);border-color:var(--accent)}
+  .cast canvas{image-rendering:pixelated;width:24px;height:48px;flex:none}
+  .cast .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cast .rm{opacity:.35;padding:0 4px}
+  .cast .rm:hover{opacity:1;color:var(--warn)}
+
+  #stage{display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:6px}
+  .previewrow{display:flex;align-items:flex-start;gap:18px}
+  #preview{image-rendering:pixelated;background:
+    repeating-conic-gradient(#1c2230 0 25%, #161b26 0 50%) 0 0/20px 20px;
+    border:1px solid var(--line);border-radius:8px}
+  /* True 1:1. The backing store is 32x64 and the CSS box is pinned to the same
+     32x64 — a canvas scaled by CSS is not actual size and defeats the point.
+     A character cell is two tiles tall, so 1x is 32x64, not 32x32. */
+  .onex{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px;
+        border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+  #preview1x{width:32px;height:64px;flex:none;image-rendering:pixelated;
+    background:repeating-conic-gradient(#1c2230 0 25%, #161b26 0 50%) 0 0/8px 8px}
+  .onexlabel{color:var(--dim);font-size:10px;text-align:center;line-height:1.35;
+             letter-spacing:.3px}
+  .facerow{display:flex;gap:6px}
+  .facerow button.on{border-color:var(--accent);color:var(--accent)}
+  .fields{width:100%;max-width:420px;display:grid;grid-template-columns:78px 1fr;
+          gap:8px;align-items:center;margin-top:4px}
+  .fields label{color:var(--dim);font-size:12px}
+  .rowc{display:flex;gap:8px;align-items:center}
+  .applynote{font-size:11px;line-height:1.35;margin-top:5px}
+  .applyc.on{border-color:#4d7ab8;background:#1d2b3f;color:#cfe1f8}
+
+  .tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+  .tabs button{padding:5px 9px;font-size:12px}
+  .tabs button.on{border-color:var(--accent);color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px}
+  .cell{position:relative;background:var(--panel);border:1px solid var(--line);
+        border-radius:6px;cursor:pointer;display:flex;align-items:center;
+        justify-content:center;height:76px;overflow:hidden}
+  .cell:hover{border-color:var(--dim)}
+  .cell.on{border-color:var(--accent);background:var(--panel2)}
+  .cell canvas{image-rendering:pixelated;width:32px;height:64px}
+  .cell .ph{color:var(--dim);font-size:10px}
+  .tintbox{margin:10px 0 14px;padding:9px;border:1px solid var(--line);border-radius:7px;
+           background:var(--panel)}
+  .tintbox .hd{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .tintbox label{font-size:12px;color:var(--dim)}
+  .muted{color:var(--dim);font-size:12px}
+  footer{display:flex;gap:8px;align-items:center;padding:9px 16px;flex:none;
+         background:var(--panel);border-top:1px solid var(--line)}
+  #status{color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CelestJux · Character Editor</h1>
+  <span class="sub" id="packinfo">no pack loaded</span>
+  <span class="grow"></span>
+  <button id="btnUndo" class="icon" title="Undo (Ctrl+Z)" disabled>&#8630;</button>
+  <button id="btnRedo" class="icon" title="Redo (Ctrl+Shift+Z)" disabled>&#8631;</button>
+  <button class="ghost" id="btnRepack">change pack</button>
+</header>
+
+<!-- ---------------------------------------------------------------- -->
+<!-- Gate: nothing renders until the user points at their own copy of  -->
+<!-- the art. The pack is licensed and cannot ship with this file.     -->
+<!-- ---------------------------------------------------------------- -->
+<div id="gate">
+  <h2>Point me at your Modern Interiors pack</h2>
+  <p>This editor draws with LimeZu's <b>Modern Interiors</b> character generator layers.
+     The art is licensed and is <b>not</b> included here — you load it from your own copy.</p>
+  <p class="muted">Pick the pack folder (the one containing <code>2_Characters</code>), or the
+     <code>Character_Generator</code> / <code>Character Pieces</code> folder itself.</p>
+  <p style="margin-top:22px">
+    <input type="file" id="packInput" webkitdirectory directory multiple hidden>
+    <button class="primary" id="btnPick">Choose pack folder…</button>
+  </p>
+  <p class="muted">Don't own it? <a href="https://limezu.itch.io/moderninteriors" target="_blank"
+     rel="noopener">limezu.itch.io/moderninteriors</a></p>
+  <div class="err" id="gateErr" hidden></div>
+</div>
+
+<div id="app">
+  <!-- cast roster -->
+  <div class="col">
+    <h3>Cast</h3>
+    <ul class="cast" id="castList"></ul>
+    <button id="btnAdd" style="width:100%">+ add agent</button>
+    <h3 style="margin-top:18px">Load</h3>
+    <input type="file" id="jsonInput" accept="application/json,.json" hidden>
+    <button class="ghost" id="btnLoad" style="width:100%">open character / cast JSON</button>
+  </div>
+
+  <!-- preview + identity -->
+  <div class="col" id="stagecol">
+    <div id="stage">
+    <div class="previewrow">
+      <canvas id="preview" width="128" height="256"></canvas>
+      <div class="onex">
+        <canvas id="preview1x" width="32" height="64"></canvas>
+        <span class="onexlabel">actual size<br>32 × 64</span>
+      </div>
+    </div>
+      <div class="facerow" id="faceRow"></div>
+      <div class="facerow">
+        <button id="btnWalk">pause</button>
+        <span class="muted" id="frameInfo" style="align-self:center"></span>
+      </div>
+
+      <div class="fields">
+        <label>name</label>      <input type="text" id="fName">
+        <label>model</label>     <input type="text" id="fModel" list="models">
+        <label>colour</label>
+        <div class="rowc"><input type="color" id="fColor"><input type="text" id="fColorHex"></div>
+        <label>apply to</label>
+        <div>
+          <div class="rowc">
+            <button type="button" class="applyc" data-layer="hair">hair</button>
+            <button type="button" class="applyc" data-layer="outfit">outfit</button>
+            <button type="button" class="applyc" data-layer="accessory">accessory</button>
+          </div>
+          <div class="muted applynote" id="applyNote">the colour above is this agent's own
+            colour in the room &mdash; labels and status, not the sprite. Press a layer to
+            paint it onto the character.</div>
+        </div>
+        <label>status</label>    <input type="text" id="fStatus">
+        <label>role</label>
+        <select id="fRole">
+          <option value="agent">agent — has a desk</option>
+          <option value="butler">butler — no desk, answers the door</option>
+          <option value="field">field — summoned, walks in and leaves</option>
+          <option value="host">host — fixed spot, never moves</option>
+        </select>
+        <label>scale</label>     <input type="number" id="fScale" step="0.05" min="0.2" max="4">
+      </div>
+      <datalist id="models">
+        <option value="opus"><option value="sonnet"><option value="haiku">
+        <option value="fable"><option value="gpt"><option value="human">
+      </datalist>
+    </div>
+  </div>
+
+  <!-- layer palette -->
+  <div class="col">
+    <h3>Layers</h3>
+    <div class="tabs" id="tabs"></div>
+    <div class="tintbox" id="tintBox"></div>
+    <div class="grid" id="paletteGrid"></div>
+  </div>
+</div>
+
+<footer>
+  <button class="primary" id="btnExportChar">export character + sheet</button>
+  <button id="btnExportCast">export cast.json + all sheets</button>
+  <span class="grow"></span>
+  <span id="status"></span>
+</footer>
+
+<!-- The cut atlas, if this copy has one. It carries the pixels as a data: URI
+     rather than a plain <img src>, because file:// taints a canvas drawn from a
+     same-folder image and the editor must read pixels back to tint and to
+     export. Absent on a copy that ships without the art — the picker takes over. -->
+<script src="sprites/char-atlas.js" onerror="window.CHAR_ATLAS_MISSING=1"></script>
+
+<script>
+"use strict";
+
+/* Cut-atlas metadata — rectangles and layer ids, written by tools/cut_layers.py.
+   Ours, not LimeZu's, so it lives inline; the pixels stay in sprites/. */
+/*ATLAS_MANIFEST_START*/
+var ATLAS_MANIFEST = {"cellW":192,"cellH":256,"cols":21,"frameW":32,"frameH":64,"frames":6,"rows":["down","left","right","up"],"size":"32x32","pack":"modern-interiors","layers":{"body":["Body_32x32_01","Body_32x32_02","Body_32x32_03","Body_32x32_04","Body_32x32_05","Body_32x32_06","Body_32x32_07","Body_32x32_08","Body_32x32_09"],"eyes":["Eyes_32x32_01","Eyes_32x32_02","Eyes_32x32_03","Eyes_32x32_04","Eyes_32x32_05","Eyes_32x32_06","Eyes_32x32_07"],"outfit":["Outfit_01_32x32_01","Outfit_01_32x32_02","Outfit_01_32x32_03","Outfit_01_32x32_04","Outfit_01_32x32_05","Outfit_01_32x32_06","Outfit_01_32x32_07","Outfit_01_32x32_08","Outfit_01_32x32_09","Outfit_01_32x32_10","Outfit_02_32x32_01","Outfit_02_32x32_02","Outfit_02_32x32_03","Outfit_02_32x32_04","Outfit_03_32x32_01","Outfit_03_32x32_02","Outfit_03_32x32_03","Outfit_03_32x32_04","Outfit_04_32x32_01","Outfit_04_32x32_02","Outfit_04_32x32_03","Outfit_05_32x32_01","Outfit_05_32x32_02","Outfit_05_32x32_03","Outfit_05_32x32_04","Outfit_05_32x32_05","Outfit_06_32x32_01","Outfit_06_32x32_02","Outfit_06_32x32_03","Outfit_06_32x32_04","Outfit_07_32x32_01","Outfit_07_32x32_02","Outfit_07_32x32_03","Outfit_07_32x32_04","Outfit_08_32x32_01","Outfit_08_32x32_02","Outfit_08_32x32_03","Outfit_09_32x32_01","Outfit_09_32x32_02","Outfit_09_32x32_03","Outfit_10_32x32_01","Outfit_10_32x32_02","Outfit_10_32x32_03","Outfit_10_32x32_04","Outfit_10_32x32_05","Outfit_11_32x32_01","Outfit_11_32x32_02","Outfit_11_32x32_03","Outfit_11_32x32_04","Outfit_12_32x32_01","Outfit_12_32x32_02","Outfit_12_32x32_03","Outfit_13_32x32_01","Outfit_13_32x32_02","Outfit_13_32x32_03","Outfit_13_32x32_04","Outfit_14_32x32_01","Outfit_14_32x32_02","Outfit_14_32x32_03","Outfit_14_32x32_04","Outfit_14_32x32_05","Outfit_15_32x32_01","Outfit_15_32x32_02","Outfit_15_32x32_03","Outfit_16_32x32_01","Outfit_16_32x32_02","Outfit_16_32x32_03","Outfit_17_32x32_01","Outfit_17_32x32_02","Outfit_17_32x32_03","Outfit_18_32x32_01","Outfit_18_32x32_02","Outfit_18_32x32_03","Outfit_18_32x32_04","Outfit_19_32x32_01","Outfit_19_32x32_02","Outfit_19_32x32_03","Outfit_19_32x32_04","Outfit_20_32x32_01","Outfit_20_32x32_02","Outfit_20_32x32_03","Outfit_21_32x32_01","Outfit_21_32x32_02","Outfit_21_32x32_03","Outfit_21_32x32_04","Outfit_22_32x32_01","Outfit_22_32x32_02","Outfit_22_32x32_03","Outfit_22_32x32_04","Outfit_23_32x32_01","Outfit_23_32x32_02","Outfit_23_32x32_03","Outfit_23_32x32_04","Outfit_24_32x32_01","Outfit_24_32x32_02","Outfit_24_32x32_03","Outfit_24_32x32_04","Outfit_25_32x32_01","Outfit_25_32x32_02","Outfit_25_32x32_03","Outfit_25_32x32_04","Outfit_25_32x32_05","Outfit_26_32x32_01","Outfit_26_32x32_02","Outfit_26_32x32_03","Outfit_27_32x32_01","Outfit_27_32x32_02","Outfit_27_32x32_03","Outfit_28_32x32_01","Outfit_28_32x32_02","Outfit_28_32x32_03","Outfit_28_32x32_04","Outfit_29_32x32_01","Outfit_29_32x32_02","Outfit_29_32x32_03","Outfit_29_32x32_04","Outfit_30_32x32_01","Outfit_30_32x32_02","Outfit_30_32x32_03","Outfit_31_32x32_01","Outfit_31_32x32_02","Outfit_31_32x32_03","Outfit_31_32x32_04","Outfit_31_32x32_05","Outfit_32_32x32_01","Outfit_32_32x32_02","Outfit_32_32x32_03","Outfit_32_32x32_04","Outfit_32_32x32_05","Outfit_33_32x32_01","Outfit_33_32x32_02","Outfit_33_32x32_03"],"hair":["Hairstyle_01_32x32_01","Hairstyle_01_32x32_02","Hairstyle_01_32x32_03","Hairstyle_01_32x32_04","Hairstyle_01_32x32_05","Hairstyle_01_32x32_06","Hairstyle_01_32x32_07","Hairstyle_02_32x32_01","Hairstyle_02_32x32_02","Hairstyle_02_32x32_03","Hairstyle_02_32x32_04","Hairstyle_02_32x32_05","Hairstyle_02_32x32_06","Hairstyle_02_32x32_07","Hairstyle_03_32x32_01","Hairstyle_03_32x32_02","Hairstyle_03_32x32_03","Hairstyle_03_32x32_04","Hairstyle_03_32x32_05","Hairstyle_03_32x32_06","Hairstyle_03_32x32_07","Hairstyle_04_32x32_01","Hairstyle_04_32x32_02","Hairstyle_04_32x32_03","Hairstyle_04_32x32_04","Hairstyle_04_32x32_05","Hairstyle_04_32x32_06","Hairstyle_04_32x32_07","Hairstyle_05_32x32_01","Hairstyle_05_32x32_02","Hairstyle_05_32x32_03","Hairstyle_05_32x32_04","Hairstyle_05_32x32_05","Hairstyle_05_32x32_06","Hairstyle_05_32x32_07","Hairstyle_06_32x32_01","Hairstyle_06_32x32_02","Hairstyle_06_32x32_03","Hairstyle_06_32x32_04","Hairstyle_06_32x32_05","Hairstyle_06_32x32_06","Hairstyle_06_32x32_07","Hairstyle_07_32x32_01","Hairstyle_07_32x32_02","Hairstyle_07_32x32_03","Hairstyle_07_32x32_04","Hairstyle_07_32x32_05","Hairstyle_07_32x32_06","Hairstyle_07_32x32_07","Hairstyle_08_32x32_01","Hairstyle_08_32x32_02","Hairstyle_08_32x32_03","Hairstyle_08_32x32_04","Hairstyle_08_32x32_05","Hairstyle_08_32x32_06","Hairstyle_08_32x32_07","Hairstyle_09_32x32_01","Hairstyle_09_32x32_02","Hairstyle_09_32x32_03","Hairstyle_09_32x32_04","Hairstyle_09_32x32_05","Hairstyle_09_32x32_06","Hairstyle_09_32x32_07","Hairstyle_10_32x32_01","Hairstyle_10_32x32_02","Hairstyle_10_32x32_03","Hairstyle_10_32x32_04","Hairstyle_10_32x32_05","Hairstyle_10_32x32_06","Hairstyle_10_32x32_07","Hairstyle_11_32x32_01","Hairstyle_11_32x32_02","Hairstyle_11_32x32_03","Hairstyle_11_32x32_04","Hairstyle_11_32x32_05","Hairstyle_11_32x32_06","Hairstyle_11_32x32_07","Hairstyle_12_32x32_01","Hairstyle_12_32x32_02","Hairstyle_12_32x32_03","Hairstyle_12_32x32_04","Hairstyle_12_32x32_05","Hairstyle_12_32x32_06","Hairstyle_12_32x32_07","Hairstyle_13_32x32_01","Hairstyle_13_32x32_02","Hairstyle_13_32x32_03","Hairstyle_13_32x32_04","Hairstyle_13_32x32_05","Hairstyle_13_32x32_06","Hairstyle_13_32x32_07","Hairstyle_14_32x32_01","Hairstyle_14_32x32_02","Hairstyle_14_32x32_03","Hairstyle_14_32x32_04","Hairstyle_14_32x32_05","Hairstyle_14_32x32_06","Hairstyle_14_32x32_07","Hairstyle_15_32x32_01","Hairstyle_15_32x32_02","Hairstyle_15_32x32_03","Hairstyle_15_32x32_04","Hairstyle_15_32x32_05","Hairstyle_15_32x32_06","Hairstyle_15_32x32_07","Hairstyle_16_32x32_01","Hairstyle_16_32x32_02","Hairstyle_16_32x32_03","Hairstyle_16_32x32_04","Hairstyle_16_32x32_05","Hairstyle_16_32x32_06","Hairstyle_16_32x32_07","Hairstyle_17_32x32_01","Hairstyle_17_32x32_02","Hairstyle_17_32x32_03","Hairstyle_17_32x32_04","Hairstyle_17_32x32_05","Hairstyle_17_32x32_06","Hairstyle_17_32x32_07","Hairstyle_18_32x32_01","Hairstyle_18_32x32_02","Hairstyle_18_32x32_03","Hairstyle_18_32x32_04","Hairstyle_18_32x32_05","Hairstyle_18_32x32_06","Hairstyle_18_32x32_07","Hairstyle_19_32x32_01","Hairstyle_19_32x32_02","Hairstyle_19_32x32_03","Hairstyle_19_32x32_04","Hairstyle_19_32x32_05","Hairstyle_19_32x32_06","Hairstyle_19_32x32_07","Hairstyle_20_32x32_01","Hairstyle_20_32x32_02","Hairstyle_20_32x32_03","Hairstyle_20_32x32_04","Hairstyle_20_32x32_05","Hairstyle_20_32x32_06","Hairstyle_20_32x32_07","Hairstyle_21_32x32_01","Hairstyle_21_32x32_02","Hairstyle_21_32x32_03","Hairstyle_21_32x32_04","Hairstyle_21_32x32_05","Hairstyle_21_32x32_06","Hairstyle_21_32x32_07","Hairstyle_22_32x32_01","Hairstyle_22_32x32_02","Hairstyle_22_32x32_03","Hairstyle_22_32x32_04","Hairstyle_22_32x32_05","Hairstyle_22_32x32_06","Hairstyle_22_32x32_07","Hairstyle_23_32x32_01","Hairstyle_23_32x32_02","Hairstyle_23_32x32_03","Hairstyle_23_32x32_04","Hairstyle_23_32x32_05","Hairstyle_23_32x32_06","Hairstyle_23_32x32_07","Hairstyle_24_32x32_01","Hairstyle_24_32x32_02","Hairstyle_24_32x32_03","Hairstyle_24_32x32_04","Hairstyle_24_32x32_05","Hairstyle_24_32x32_06","Hairstyle_24_32x32_07","Hairstyle_25_32x32_01","Hairstyle_25_32x32_02","Hairstyle_25_32x32_03","Hairstyle_25_32x32_04","Hairstyle_25_32x32_05","Hairstyle_25_32x32_06","Hairstyle_25_32x32_07","Hairstyle_26_32x32_01","Hairstyle_26_32x32_02","Hairstyle_26_32x32_03","Hairstyle_26_32x32_04","Hairstyle_26_32x32_05","Hairstyle_26_32x32_06","Hairstyle_26_32x32_07","Hairstyle_27_32x32_01","Hairstyle_27_32x32_02","Hairstyle_27_32x32_03","Hairstyle_27_32x32_04","Hairstyle_27_32x32_05","Hairstyle_27_32x32_06","Hairstyle_28_32x32_01","Hairstyle_28_32x32_02","Hairstyle_28_32x32_03","Hairstyle_28_32x32_04","Hairstyle_28_32x32_05","Hairstyle_28_32x32_06","Hairstyle_29_32x32_01","Hairstyle_29_32x32_02","Hairstyle_29_32x32_03","Hairstyle_29_32x32_04","Hairstyle_29_32x32_05","Hairstyle_29_32x32_06"],"accessory":["Accessory_01_Ladybug_32x32_01","Accessory_01_Ladybug_32x32_02","Accessory_01_Ladybug_32x32_03","Accessory_01_Ladybug_32x32_04","Accessory_02_Bee_32x32_01","Accessory_02_Bee_32x32_02","Accessory_02_Bee_32x32_03","Accessory_03_Backpack_32x32_01","Accessory_03_Backpack_32x32_02","Accessory_03_Backpack_32x32_03","Accessory_03_Backpack_32x32_04","Accessory_03_Backpack_32x32_05","Accessory_03_Backpack_32x32_06","Accessory_03_Backpack_32x32_07","Accessory_03_Backpack_32x32_08","Accessory_03_Backpack_32x32_09","Accessory_03_Backpack_32x32_10","Accessory_04_Snapback_32x32_01","Accessory_04_Snapback_32x32_02","Accessory_04_Snapback_32x32_03","Accessory_04_Snapback_32x32_04","Accessory_04_Snapback_32x32_05","Accessory_04_Snapback_32x32_06","Accessory_05_Dino_Snapback_32x32_01","Accessory_05_Dino_Snapback_32x32_02","Accessory_05_Dino_Snapback_32x32_03","Accessory_06_Policeman_Hat_32x32_01","Accessory_06_Policeman_Hat_32x32_02","Accessory_06_Policeman_Hat_32x32_03","Accessory_06_Policeman_Hat_32x32_04","Accessory_06_Policeman_Hat_32x32_05","Accessory_06_Policeman_Hat_32x32_06","Accessory_07_Bataclava_32x32_01","Accessory_07_Bataclava_32x32_02","Accessory_07_Bataclava_32x32_03","Accessory_08_Detective_Hat_32x32_01","Accessory_08_Detective_Hat_32x32_02","Accessory_08_Detective_Hat_32x32_03","Accessory_09_Zombie_Brain_32x32_01","Accessory_09_Zombie_Brain_32x32_02","Accessory_09_Zombie_Brain_32x32_03","Accessory_10_Bolt_32x32_01","Accessory_10_Bolt_32x32_02","Accessory_10_Bolt_32x32_03","Accessory_11_Beanie_32x32_01","Accessory_11_Beanie_32x32_02","Accessory_11_Beanie_32x32_03","Accessory_11_Beanie_32x32_04","Accessory_11_Beanie_32x32_05","Accessory_12_Mustache_32x32_01","Accessory_12_Mustache_32x32_02","Accessory_12_Mustache_32x32_03","Accessory_12_Mustache_32x32_04","Accessory_12_Mustache_32x32_05","Accessory_13_Beard_32x32_01","Accessory_13_Beard_32x32_02","Accessory_13_Beard_32x32_03","Accessory_13_Beard_32x32_04","Accessory_13_Beard_32x32_05","Accessory_14_Gloves_32x32_01","Accessory_14_Gloves_32x32_02","Accessory_14_Gloves_32x32_03","Accessory_14_Gloves_32x32_04","Accessory_15_Glasses_32x32_01","Accessory_15_Glasses_32x32_02","Accessory_15_Glasses_32x32_03","Accessory_15_Glasses_32x32_04","Accessory_15_Glasses_32x32_05","Accessory_15_Glasses_32x32_06","Accessory_16_Monocle_32x32_01","Accessory_16_Monocle_32x32_02","Accessory_16_Monocle_32x32_03","Accessory_17_Medical_Mask_32x32_01","Accessory_17_Medical_Mask_32x32_02","Accessory_17_Medical_Mask_32x32_03","Accessory_17_Medical_Mask_32x32_04","Accessory_17_Medical_Mask_32x32_05","Accessory_18_Chef_32x32_01","Accessory_18_Chef_32x32_02","Accessory_18_Chef_32x32_03","Accessory_19_Party_Cone_32x32_01","Accessory_19_Party_Cone_32x32_02","Accessory_19_Party_Cone_32x32_03","Accessory_19_Party_Cone_32x32_04"]}};
+/*ATLAS_MANIFEST_END*/
+
+/* ------------------------------------------------------------------
+   The arena's sheet convention, taken from tools/compose_character.py
+   and index.html — NOT guessed. Source cells are 32x64. Within an
+   animation row the source columns run right(0-5) up(6-11) left(12-17)
+   down(18-23); the arena wants rows down/left/right/up. Walk is row 2.
+   ------------------------------------------------------------------ */
+var CW = 32, CH = 64, FRAMES = 6, WALK_ROW = 2;
+var SRC_DIR_COL = { right: 0, up: 6, left: 12, down: 18 };
+var OUT_ROWS = ["down", "left", "right", "up"];      // == index.html SPRITE_DIR_ROW
+var ORDER = ["body", "eyes", "outfit", "hair", "accessory"];
+var CATEGORY = {                                      // layer key -> pack folder
+  body: "Bodies", eyes: "Eyes", outfit: "Outfits",
+  hair: "Hairstyles", accessory: "Accessories"
+};
+var TINTABLE = ["outfit", "hair", "accessory"];
+var BUY = "https://limezu.itch.io/moderninteriors";
+
+/* ---------------- pack index: category -> [{id, file}] -------------
+   Two sources produce the same shape. A folder the user picked gives items
+   with a .file (a raw 1792x1312 pack sheet); the cut atlas gives items with a
+   .cell (an index into one already-ordered grid). Everything downstream asks
+   for an ordered 192x256 canvas and does not care which it came from. */
+var PACK = null;          // { size, items:{body:[...],...}, source:"atlas"|"folder" }
+var ATLAS_IMG = null;     // decoded atlas, atlas mode only
+var bitmapCache = {};     // "body/Body_32x32_01" -> ImageBitmap (folder mode)
+var orderedCache = {};    // "body/Body_32x32_01" -> 192x256 canvas
+
+function el(id) { return document.getElementById(id); }
+function setStatus(s) { el("status").textContent = s; }
+
+/* A pack folder can be the whole product, the Character_Generator dir, or the
+   standalone generator's "Character Pieces" dir. All three put the layers in a
+   folder NAMED after the category, so match on the folder name and nothing else
+   — filenames differ between the two distributions (Body_01.png in the
+   standalone build, Body_32x32_01.png in the full pack) and cannot be relied on. */
+function indexPack(files) {
+  var items = {}, sizes = {};
+  ORDER.forEach(function (k) { items[k] = []; });
+
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var rel = f.webkitRelativePath || f.name;
+    if (!/\.png$/i.test(rel)) continue;
+    var parts = rel.split("/");
+    // .../<Category>/<size>/<file>.png  — kids folders are a different rig, skip
+    if (parts.length < 3) continue;
+    var size = parts[parts.length - 2];
+    var cat  = parts[parts.length - 3];
+    if (!/^\d+x\d+$/.test(size)) continue;
+    var key = null;
+    for (var k in CATEGORY) if (CATEGORY[k] === cat) key = k;
+    if (!key) continue;
+    sizes[size] = (sizes[size] || 0) + 1;
+    items[key].push({ id: f.name.replace(/\.png$/i, ""), file: f, size: size });
+  }
+
+  // Prefer 32x32 — that is the size the arena's sheets are cut at.
+  var size = items.body.some(function (o) { return o.size === "32x32"; }) ? "32x32"
+           : Object.keys(sizes).sort(function (a, b) { return sizes[b] - sizes[a]; })[0];
+  if (!size) return null;
+
+  ORDER.forEach(function (k) {
+    items[k] = items[k].filter(function (o) { return o.size === size; })
+                       .sort(function (a, b) { return a.id.localeCompare(b.id); });
+  });
+  if (!items.body.length) return null;
+  return { size: size, items: items };
+}
+
+function openPack(files) {
+  var p = indexPack(files);
+  if (!p) {
+    var seen = {};
+    for (var i = 0; i < Math.min(files.length, 4000); i++) {
+      var pr = (files[i].webkitRelativePath || "").split("/");
+      if (pr.length > 2) seen[pr[pr.length - 3]] = 1;
+    }
+    gateError(
+      "That folder has no character generator layers in it.\n\n" +
+      "I look for folders named Bodies / Eyes / Outfits / Hairstyles / Accessories,\n" +
+      "each holding a size folder like 32x32.\n\n" +
+      "Folders I actually saw: " + (Object.keys(seen).slice(0, 14).join(", ") || "(none)") +
+      "\n\nPick the pack root (the one with 2_Characters), its Character_Generator\n" +
+      "folder, or the standalone generator's 'Character Pieces' folder.\n" +
+      "Pack: " + BUY);
+    return;
+  }
+  PACK = p;
+  PACK.source = "folder";
+  bitmapCache = {}; orderedCache = {};
+  var counts = ORDER.map(function (k) { return p.items[k].length + " " + k; }).join(" · ");
+  el("packinfo").textContent = p.size + " — " + counts;
+  el("gate").style.display = "none";
+  el("app").style.display = "grid";
+  if (!cast.length) addAgent();
+  renderTabs(); renderPalette(); selectCast(sel);
+  clearHistory();          // opening a pack is not an edit
+}
+
+/* ---------------- boot ---------------------------------------------
+   This copy opens ready if it has a cut atlas beside it; otherwise it asks
+   for the pack. Never a placeholder look — one or the other. */
+function openAtlas() {
+  var m = ATLAS_MANIFEST;
+  var items = {};
+  var i = 0;
+  ORDER.forEach(function (k) {
+    items[k] = (m.layers[k] || []).map(function (id) { return { id: id, cell: i++ }; });
+  });
+  PACK = { size: m.size, items: items, source: "atlas" };
+  bitmapCache = {}; orderedCache = {};
+  var counts = ORDER.map(function (k) { return items[k].length + " " + k; }).join(" · ");
+  el("packinfo").textContent = m.size + " — " + counts + " · local pack";
+  el("gate").style.display = "none";
+  el("app").style.display = "grid";
+  if (!cast.length) addAgent();
+  renderTabs(); renderPalette(); selectCast(sel);
+  clearHistory();          // opening a pack is not an edit
+}
+
+function boot() {
+  if (!ATLAS_MANIFEST || !window.CHAR_ATLAS_PNG) return;   // gate stays up
+  var img = new Image();
+  img.onload = function () {
+    ATLAS_IMG = img;
+    openAtlas();
+  };
+  img.onerror = function () {
+    // The manifest promised an atlas and the pixels did not arrive. Say so and
+    // fall through to the picker rather than drawing something invented.
+    gateError("This copy lists a cut atlas but sprites/char-atlas.js did not load.\n"
+              + "Re-run tools/cut_layers.py, or pick the pack folder below.");
+  };
+  img.src = window.CHAR_ATLAS_PNG;
+}
+
+function gateError(msg) {
+  var e = el("gateErr"); e.hidden = false; e.textContent = msg;
+}
+
+/* ---------------- layer bitmaps ------------------------------------ */
+function findItem(key, id) {
+  var list = PACK.items[key];
+  for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+  return null;
+}
+
+function layerBitmap(key, id) {
+  var ck = key + "/" + id;
+  if (bitmapCache[ck]) return Promise.resolve(bitmapCache[ck]);
+  var it = findItem(key, id);
+  if (!it) return Promise.reject(new Error("layer not in pack: " + ck));
+  // Every pack PNG carries an sRGB chunk, and the default decode colour-manages
+  // it to the display profile — which shifted opaque skin pixels by 1 per channel
+  // and made our sheets disagree with the python composer. Decode the bytes as
+  // they are written.
+  return createImageBitmap(it.file, { colorSpaceConversion: "none" }).then(function (bm) {
+    bitmapCache[ck] = bm; return bm;
+  });
+}
+
+/* One layer, cut to the arena's 192x256 row order, whichever source it came from. */
+function orderedCanvas(key, id) {
+  var ck = key + "/" + id;
+  if (orderedCache[ck]) return Promise.resolve(orderedCache[ck]);
+  var it = findItem(key, id);
+  if (!it) return Promise.reject(new Error("layer not in pack: " + ck));
+
+  if (it.cell != null) {
+    var m = ATLAS_MANIFEST;
+    var cv = newCanvas(m.cellW, m.cellH);
+    var c = cv.getContext("2d");
+    c.imageSmoothingEnabled = false;
+    c.drawImage(ATLAS_IMG, (it.cell % m.cols) * m.cellW,
+                Math.floor(it.cell / m.cols) * m.cellH, m.cellW, m.cellH,
+                0, 0, m.cellW, m.cellH);
+    orderedCache[ck] = cv;
+    return Promise.resolve(cv);
+  }
+  return layerBitmap(key, id).then(function (bm) {
+    return (orderedCache[ck] = layerSheet(bm));
+  });
+}
+
+/* ---------------- tint: the HSV push from compose_character.py ------ */
+function rgb2hsv(r, g, b) {
+  r/=255; g/=255; b/=255;
+  var mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx - mn, h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6; if (h < 0) h += 1;
+  }
+  return [h, mx ? d / mx : 0, mx];
+}
+function hsv2rgb(h, s, v) {
+  var i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - s),
+      q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  var r, g, b;
+  switch (i % 6) {
+    case 0: r=v; g=t; b=p; break;  case 1: r=q; g=v; b=p; break;
+    case 2: r=p; g=v; b=t; break;  case 3: r=p; g=q; b=v; break;
+    case 4: r=t; g=p; b=v; break;  default: r=v; g=p; b=q;
+  }
+  return [r*255, g*255, b*255];
+}
+// Near-greys carry the shading and white trim; recolouring them flattens the
+// garment into a blob. Same 0.12 cutoff the python tool uses.
+function tintCanvas(cv, hex, satMul) {
+  var c = cv.getContext("2d", { willReadFrequently: true });
+  var img = c.getImageData(0, 0, cv.width, cv.height), d = img.data;
+  var tr = parseInt(hex.slice(1,3),16), tg = parseInt(hex.slice(3,5),16),
+      tb = parseInt(hex.slice(5,7),16);
+  var th = rgb2hsv(tr, tg, tb)[0];
+  for (var i = 0; i < d.length; i += 4) {
+    if (d[i+3] === 0) continue;
+    var hsv = rgb2hsv(d[i], d[i+1], d[i+2]);
+    if (hsv[1] < 0.12) continue;
+    var out = hsv2rgb(th, Math.min(1, hsv[1] * satMul), hsv[2]);
+    d[i] = Math.round(out[0]); d[i+1] = Math.round(out[1]); d[i+2] = Math.round(out[2]);
+  }
+  c.putImageData(img, 0, 0);
+}
+
+/* ---------------- compose a full 192x256 arena sheet ---------------- */
+function newCanvas(w, h) {
+  var c = document.createElement("canvas"); c.width = w; c.height = h; return c;
+}
+
+// Pull one layer's 24 walk frames into the arena's row order.
+function layerSheet(bm) {
+  var cv = newCanvas(CW * FRAMES, CH * OUT_ROWS.length);
+  var c = cv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  for (var r = 0; r < OUT_ROWS.length; r++) {
+    var c0 = SRC_DIR_COL[OUT_ROWS[r]];
+    for (var f = 0; f < FRAMES; f++) {
+      c.drawImage(bm, (c0 + f) * CW, WALK_ROW * CH, CW, CH,
+                      f * CW, r * CH, CW, CH);
+    }
+  }
+  return cv;
+}
+
+function composeSheet(look) {
+  var picks = [];
+  ORDER.forEach(function (k) {
+    var v = look[k === "accessory" ? "accessories" : k];
+    if (!v) return;
+    (Array.isArray(v) ? v : [v]).forEach(function (id) { if (id) picks.push([k, id]); });
+  });
+  if (!picks.length) return Promise.resolve(newCanvas(CW * FRAMES, CH * OUT_ROWS.length));
+
+  return Promise.all(picks.map(function (p) { return orderedCanvas(p[0], p[1]); }))
+    .then(function (cvs) {
+      var sheet = newCanvas(CW * FRAMES, CH * OUT_ROWS.length);
+      var sc = sheet.getContext("2d");
+      sc.imageSmoothingEnabled = false;
+      for (var i = 0; i < cvs.length; i++) {
+        var key = picks[i][0];
+        var t = (look.tints || {})[key];
+        var lc = cvs[i];
+        if (t && t.color) {
+          // tint writes into the canvas, so never tint the cached one
+          var tmp = newCanvas(lc.width, lc.height);
+          tmp.getContext("2d").drawImage(lc, 0, 0);
+          tintCanvas(tmp, t.color, t.sat == null ? 1 : t.sat);
+          lc = tmp;
+        }
+        sc.drawImage(lc, 0, 0);
+      }
+      return sheet;
+    });
+}
+
+/* ---------------- the cast ----------------------------------------- */
+function blankCharacter(n) {
+  return {
+    name: "Agent" + n, model: "opus", color: "#1abc9c",
+    status: "idle", role: "agent", scale: 1,
+    look: { body: null, eyes: null, outfit: null, hair: null,
+            accessories: [], tints: {} }
+  };
+}
+var cast = [], sel = 0;
+
+/* ---------------- undo / redo ---------------------------------------
+   A snapshot is the whole roster plus which agent is selected — layer picks
+   and a few strings, so it is tiny. Snapshotting the roster rather than one
+   character is what makes add/remove and switching agents undoable too. */
+var undoStack = [], redoStack = [], UNDO_CAP = 100;
+var lastPushKey = null, lastPushAt = 0;
+
+function snapshot() { return JSON.stringify({ cast: cast, sel: sel }); }
+
+// `key` groups a burst of edits into one step: typing a name is one undo,
+// not one per keystroke. Pass nothing for changes that are already discrete.
+function pushUndo(key) {
+  var now = Date.now();
+  if (key && key === lastPushKey && now - lastPushAt < 700) { lastPushAt = now; return; }
+  lastPushKey = key || null;
+  lastPushAt = now;
+  undoStack.push(snapshot());
+  if (undoStack.length > UNDO_CAP) undoStack.shift();
+  // A new change invalidates every redo: keeping them would let redo paste a
+  // state that never followed from this one.
+  redoStack.length = 0;
+  syncHistoryButtons();
+}
+
+function restoreState(s) {
+  var o = JSON.parse(s);
+  cast = o.cast;
+  sel = Math.max(0, Math.min(o.sel, cast.length - 1));
+  lastPushKey = null;
+  selectCast(sel);
+  syncHistoryButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshot());
+  restoreState(undoStack.pop());
+  setStatus("undo · " + undoStack.length + " left");
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshot());
+  restoreState(redoStack.pop());
+  setStatus("redo · " + redoStack.length + " left");
+}
+
+function syncHistoryButtons() {
+  el("btnUndo").disabled = !undoStack.length;
+  el("btnRedo").disabled = !redoStack.length;
+}
+
+function clearHistory() {
+  undoStack.length = 0; redoStack.length = 0; lastPushKey = null;
+  syncHistoryButtons();
+}
+
+function current() { return cast[sel]; }
+
+function addAgent() {
+  pushUndo();
+  var ch = blankCharacter(cast.length + 1);
+  // Start on the first of everything so the preview is a person, not a void.
+  if (PACK) {
+    ["body", "eyes", "outfit", "hair"].forEach(function (k) {
+      var l = PACK.items[k]; if (l.length) ch.look[k] = l[0].id;
+    });
+  }
+  cast.push(ch); sel = cast.length - 1;
+  renderCast(); selectCast(sel);
+}
+
+function removeAgent(i) {
+  pushUndo();
+  cast.splice(i, 1);
+  if (!cast.length) { cast.push(blankCharacter(1)); sel = 0; }
+  else sel = Math.min(sel, cast.length - 1);
+  renderCast(); selectCast(sel);
+}
+
+function renderCast() {
+  var ul = el("castList"); ul.innerHTML = "";
+  cast.forEach(function (ch, i) {
+    var li = document.createElement("li");
+    if (i === sel) li.className = "on";
+    var cv = newCanvas(32, 64); cv.className = "thumb";
+    var nm = document.createElement("span");
+    nm.className = "nm"; nm.textContent = ch.name;
+    var rm = document.createElement("span");
+    rm.className = "rm"; rm.textContent = "✕";
+    rm.onclick = function (e) { e.stopPropagation(); removeAgent(i); };
+    li.appendChild(cv); li.appendChild(nm); li.appendChild(rm);
+    li.onclick = function () { sel = i; renderCast(); selectCast(i); };
+    ul.appendChild(li);
+    composeSheet(ch.look).then(function (sh) {
+      var c = cv.getContext("2d"); c.imageSmoothingEnabled = false;
+      c.clearRect(0, 0, 32, 64); c.drawImage(sh, 0, 0, CW, CH, 0, 0, 32, 64);
+    });
+  });
+}
+
+/* ---------------- preview animation --------------------------------- */
+var sheetCv = null, facing = "down", frame = 0, playing = true, lastT = 0;
+
+function refreshSheet() {
+  var ch = current();
+  return composeSheet(ch.look).then(function (sh) { sheetCv = sh; return sh; });
+}
+
+function drawPreview() {
+  var cv = el("preview"), c = cv.getContext("2d");
+  var cv1 = el("preview1x"), c1 = cv1.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  c1.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, cv.width, cv.height);
+  c1.clearRect(0, 0, cv1.width, cv1.height);
+  if (!sheetCv) return;
+  var row = OUT_ROWS.indexOf(facing);
+  // Both panels are painted from the same frame in the same call, so the
+  // magnified view and the actual-size view can never drift apart.
+  c.drawImage(sheetCv, frame * CW, row * CH, CW, CH, 0, 0, cv.width, cv.height);
+  c1.drawImage(sheetCv, frame * CW, row * CH, CW, CH, 0, 0, CW, CH);
+  el("frameInfo").textContent = facing + " · frame " + (frame + 1) + "/" + FRAMES;
+}
+
+function tick(t) {
+  if (playing && t - lastT > 130) { lastT = t; frame = (frame + 1) % FRAMES; drawPreview(); }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* ---------------- palette ------------------------------------------- */
+var tab = "body";
+
+function renderTabs() {
+  var d = el("tabs"); d.innerHTML = "";
+  ORDER.forEach(function (k) {
+    var b = document.createElement("button");
+    b.textContent = k + " (" + PACK.items[k].length + ")";
+    if (k === tab) b.className = "on";
+    b.onclick = function () { tab = k; renderTabs(); renderPalette(); };
+    d.appendChild(b);
+  });
+}
+
+// In folder mode a thumbnail decodes a 1792x1312 PNG, so only build the ones
+// on screen. In atlas mode it is a crop and costs nothing either way.
+var thumbObserver = new IntersectionObserver(function (entries) {
+  entries.forEach(function (e) {
+    if (!e.isIntersecting) return;
+    thumbObserver.unobserve(e.target);
+    var key = e.target.dataset.key, id = e.target.dataset.id, cv = e.target.querySelector("canvas");
+    orderedCanvas(key, id).then(function (oc) {
+      var c = cv.getContext("2d"); c.imageSmoothingEnabled = false;
+      c.drawImage(oc, 0, 0, CW, CH, 0, 0, CW, CH);   // row 0 frame 0 == facing down
+      var ph = e.target.querySelector(".ph"); if (ph) ph.remove();
+    });
+  });
+}, { root: null, rootMargin: "160px" });
+
+function renderPalette() {
+  var g = el("paletteGrid"); g.innerHTML = "";
+  var ch = current(), list = PACK.items[tab];
+  var chosen = tab === "accessory" ? (ch.look.accessories || []) : [ch.look[tab]];
+
+  if (tab !== "accessory") {
+    var none = document.createElement("div");
+    none.className = "cell" + (ch.look[tab] ? "" : " on");
+    none.innerHTML = '<span class="ph">none</span>';
+    none.onclick = function () { pushUndo(); ch.look[tab] = null; afterLookChange(); };
+    g.appendChild(none);
+  }
+
+  list.forEach(function (it) {
+    var d = document.createElement("div");
+    d.className = "cell" + (chosen.indexOf(it.id) >= 0 ? " on" : "");
+    d.dataset.key = tab; d.dataset.id = it.id; d.title = it.id;
+    var cv = newCanvas(CW, CH);
+    d.appendChild(cv);
+    var ph = document.createElement("span"); ph.className = "ph"; ph.textContent = "…";
+    d.appendChild(ph);
+    d.onclick = function () {
+      pushUndo();
+      if (tab === "accessory") {
+        var a = ch.look.accessories || (ch.look.accessories = []);
+        var i = a.indexOf(it.id);
+        if (i >= 0) a.splice(i, 1); else a.push(it.id);
+      } else {
+        ch.look[tab] = it.id;
+      }
+      afterLookChange();
+    };
+    g.appendChild(d);
+    thumbObserver.observe(d);
+  });
+  renderTint();
+}
+
+function renderTint() {
+  var box = el("tintBox"), ch = current();
+  if (TINTABLE.indexOf(tab) < 0) {
+    box.innerHTML = '<span class="muted">' + tab + ' is not tinted — it carries skin and eye colour.</span>';
+    return;
+  }
+  var t = (ch.look.tints || {})[tab] || null;
+  box.innerHTML =
+    '<div class="hd"><input type="checkbox" id="tOn"' + (t ? " checked" : "") + '>' +
+    '<label for="tOn">tint ' + tab + '</label></div>' +
+    '<div class="rowc"><input type="color" id="tCol" value="' + (t ? t.color : ch.color) + '">' +
+    '<label>sat ×</label><input type="number" id="tSat" step="0.1" min="0.1" max="3" ' +
+    'value="' + (t && t.sat != null ? t.sat : 1.4) + '"></div>' +
+    '<div class="muted" style="margin-top:6px">LimeZu\'s palette is muted, so stock clothes ' +
+    'never match a vivid UI colour. Near-greys are left alone.</div>';
+
+  function apply() {
+    // colour drags fire continuously — one undo step per burst
+    pushUndo("tint:" + tab);
+    ch.look.tints = ch.look.tints || {};
+    if (el("tOn").checked) {
+      ch.look.tints[tab] = { color: el("tCol").value, sat: parseFloat(el("tSat").value) || 1 };
+    } else {
+      delete ch.look.tints[tab];
+    }
+    afterLookChange(true);
+  }
+  el("tOn").onchange = apply; el("tCol").oninput = apply; el("tSat").oninput = apply;
+}
+
+function afterLookChange(keepTintUI) {
+  refreshSheet().then(drawPreview);
+  renderCast();
+  if (!keepTintUI) renderPalette();
+}
+
+/* ---------------- identity fields ----------------------------------- */
+function selectCast(i) {
+  sel = i;
+  var ch = current();
+  el("fName").value = ch.name;
+  el("fModel").value = ch.model;
+  el("fColor").value = ch.color;
+  el("fColorHex").value = ch.color;
+  el("fStatus").value = ch.status;
+  el("fRole").value = ch.role;
+  el("fScale").value = ch.scale;
+  renderCast();
+  renderPalette();
+  renderApplyRow();
+  refreshSheet().then(drawPreview);
+}
+
+function bindField(id, key) {
+  el(id).oninput = function () {
+    pushUndo("f:" + key);          // a burst of typing collapses to one step
+    var ch = current();
+    ch[key] = (key === "scale") ? (parseFloat(this.value) || 1) : this.value;
+    if (key === "name") renderCast();
+  };
+}
+["fName:name", "fModel:model", "fStatus:status", "fScale:scale"].forEach(function (s) {
+  var p = s.split(":"); bindField(p[0], p[1]);
+});
+el("fRole").onchange = function () { pushUndo(); current().role = this.value; };
+el("fColor").oninput = function () {
+  pushUndo("color");
+  current().color = this.value; el("fColorHex").value = this.value;
+  renderApplyRow();   // a new colour un-lights buttons painted with the old one
+};
+// The "colour" field is the agent's own colour in the room — it never touched a
+// pixel of the sprite. A swatch that changes nothing you can see is the editor
+// lying, and it sent abang hunting for a broken tint that was never broken: the
+// real control lives in LAYERS and only appears on a tintable tab, so from the
+// `body` tab there is nothing on screen to find. These buttons carry the colour
+// across so you can see it land.
+var TINT_SAT = 1.4;   // same default the LAYERS tint box uses
+
+function applyColourTo(layer) {
+  var ch = current();
+  pushUndo("apply:" + layer);
+  ch.look.tints = ch.look.tints || {};
+  var already = ch.look.tints[layer];
+  if (already && already.color === ch.color) {
+    delete ch.look.tints[layer];                 // press again to take it off
+  } else {
+    ch.look.tints[layer] = { color: ch.color, sat: TINT_SAT };
+  }
+  afterLookChange(false);
+  renderApplyRow();
+}
+
+function renderApplyRow() {
+  var tints = (current().look.tints) || {};
+  var on = [];
+  Array.prototype.forEach.call(document.querySelectorAll(".applyc"), function (b) {
+    var layer = b.getAttribute("data-layer");
+    var lit = !!tints[layer] && tints[layer].color === current().color;
+    b.classList.toggle("on", lit);
+    if (tints[layer]) on.push(layer + " " + tints[layer].color);
+  });
+  // Say what the tint actually does. It takes the HUE of the swatch and keeps the
+  // sprite's own light and shade (tintCanvas: hsv2rgb(theirHue, sat*mul, ourValue)),
+  // so #0a0000 lands as red, not black — which is exactly the surprise that made
+  // this row necessary.
+  el("applyNote").innerHTML = on.length
+    ? "painted: <b>" + on.join("</b>, <b>") + "</b> \u2014 press a lit button again to " +
+      "take it off. Only the <b>hue</b> travels; the sprite keeps its own light and " +
+      "shade, so a near-black or near-white swatch still lands as its colour."
+    : "the colour above is this agent's own colour in the room \u2014 labels and status, " +
+      "not the sprite. Press a layer to paint it onto the character.";
+}
+
+Array.prototype.forEach.call(document.querySelectorAll(".applyc"), function (b) {
+  b.onclick = function () { applyColourTo(b.getAttribute("data-layer")); };
+});
+
+el("fColorHex").oninput = function () {
+  if (/^#[0-9a-f]{6}$/i.test(this.value)) {
+    pushUndo("color");
+    current().color = this.value; el("fColor").value = this.value;
+    renderApplyRow();
+  }
+};
+
+/* ---------------- facing buttons ------------------------------------ */
+(function () {
+  var r = el("faceRow");
+  OUT_ROWS.forEach(function (f) {
+    var b = document.createElement("button");
+    b.textContent = f; b.dataset.f = f;
+    if (f === facing) b.className = "on";
+    b.onclick = function () {
+      facing = f;
+      Array.prototype.forEach.call(r.children, function (x) {
+        x.className = x.dataset.f === facing ? "on" : "";
+      });
+      drawPreview();
+    };
+    r.appendChild(b);
+  });
+})();
+el("btnWalk").onclick = function () {
+  playing = !playing; this.textContent = playing ? "pause" : "play";
+};
+
+/* ---------------- save / load --------------------------------------
+   These two are the only place that knows where a character goes. Point
+   them at a VPS later and nothing else in this file changes.
+   ------------------------------------------------------------------- */
+function sheetName(ch) { return ch.name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-") + "-sheet.png"; }
+
+function toCharacterJSON(ch) {
+  return {
+    format: "celestjux.character", version: 1,
+    name: ch.name, model: ch.model, color: ch.color, status: ch.status,
+    role: ch.role, sheet: "sprites/" + sheetName(ch),
+    frameW: CW, frameH: CH, frames: FRAMES, scale: ch.scale,
+    look: {
+      pack: "modern-interiors", size: PACK ? PACK.size : "32x32",
+      body: ch.look.body, eyes: ch.look.eyes, outfit: ch.look.outfit,
+      hair: ch.look.hair, accessories: (ch.look.accessories || []).slice(),
+      tints: JSON.parse(JSON.stringify(ch.look.tints || {}))
+    }
+  };
+}
+
+function download(blob, filename) {
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+}
+
+function canvasBlob(cv) {
+  return new Promise(function (res) { cv.toBlob(res, "image/png"); });
+}
+
+// saveCharacter — one character + its sheet.
+function saveCharacter(ch) {
+  var json = toCharacterJSON(ch);
+  return composeSheet(ch.look).then(canvasBlob).then(function (png) {
+    download(png, sheetName(ch));
+    download(new Blob([JSON.stringify(json, null, 2)], { type: "application/json" }),
+             ch.name.toLowerCase() + ".character.json");
+    setStatus("saved " + ch.name + " + " + sheetName(ch));
+  });
+}
+
+// saveCast — the whole roster plus every sheet.
+function saveCast() {
+  var doc = { format: "celestjux.cast", version: 1,
+              characters: cast.map(toCharacterJSON) };
+  download(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), "cast.json");
+  return cast.reduce(function (p, ch) {
+    return p.then(function () {
+      return composeSheet(ch.look).then(canvasBlob).then(function (b) {
+        download(b, sheetName(ch));
+      });
+    });
+  }, Promise.resolve()).then(function () {
+    setStatus("saved cast.json + " + cast.length + " sheets");
+  });
+}
+
+// loadCharacter — accepts a single character or a cast document.
+function loadCharacter(doc) {
+  var list = doc.format === "celestjux.cast" ? doc.characters : [doc];
+  var made = list.map(function (j) {
+    var L = j.look || {};
+    return {
+      name: j.name || "Agent", model: j.model || "opus",
+      color: j.color || "#1abc9c", status: j.status || "idle",
+      role: j.role || "agent", scale: j.scale == null ? 1 : j.scale,
+      look: { body: L.body || null, eyes: L.eyes || null, outfit: L.outfit || null,
+              hair: L.hair || null, accessories: (L.accessories || []).slice(),
+              tints: L.tints || {} }
+    };
+  });
+  if (!made.length) throw new Error("no characters in that file");
+  cast = made; sel = 0;
+  selectCast(0);
+  clearHistory();          // opening a file is not a change
+  setStatus("loaded " + made.length + " character(s)");
+}
+
+/* ---------------- wiring -------------------------------------------- */
+el("btnPick").onclick = function () { el("packInput").click(); };
+el("btnRepack").onclick = function () { el("packInput").click(); };
+el("packInput").onchange = function () {
+  if (this.files && this.files.length) openPack(Array.prototype.slice.call(this.files));
+};
+el("btnAdd").onclick = addAgent;
+el("btnLoad").onclick = function () { el("jsonInput").click(); };
+el("jsonInput").onchange = function () {
+  var f = this.files[0]; if (!f) return;
+  f.text().then(function (t) { loadCharacter(JSON.parse(t)); })
+          .catch(function (e) { setStatus("load failed: " + e.message); });
+};
+el("btnExportChar").onclick = function () { saveCharacter(current()); };
+el("btnExportCast").onclick = saveCast;
+
+el("btnUndo").onclick = undo;
+el("btnRedo").onclick = redo;
+
+/* A text field owns its own undo, so the shortcuts stand back while one is
+   focused. The trap: after typing a name the input KEEPS focus, so the guard
+   would swallow Ctrl+Z forever. Clicking anywhere that is not a field blurs
+   it, which is what hands the shortcuts back. */
+document.addEventListener("mousedown", function (e) {
+  var a = document.activeElement;
+  if (!a || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  if (e.target.closest && e.target.closest("input, textarea, select")) return;
+  a.blur();
+});
+
+document.addEventListener("keydown", function (e) {
+  var a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
+  var k = (e.key || "").toLowerCase();
+  if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+
+/* Test hook: headless drivers need to load a pack without a file dialog and
+   read back real pixels. Nothing in the UI depends on this. */
+window.__editor = {
+  openPack: openPack, cast: function () { return cast; }, select: selectCast,
+  compose: function () { return composeSheet(current().look); },
+  set: function (k, v) { current().look[k] = v; return afterLookChange(); },
+  json: function () { return toCharacterJSON(current()); },
+  load: loadCharacter, pack: function () { return PACK; },
+  ready: function () { return !!PACK; },
+  state: function () { return { facing: facing, frame: frame, playing: playing }; },
+  pause: function () { playing = false; el("btnWalk").textContent = "play"; },
+  history: function () { return { undo: undoStack.length, redo: redoStack.length }; },
+  undo: undo, redo: redo
+};
+
+boot();
+</script>
+</body>
+</html>
