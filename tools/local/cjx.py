@@ -14,6 +14,7 @@ here, so it is discovered from the listening sockets rather than passed in.
 """
 import asyncio
 import json
+import os
 import re
 import subprocess
 import sys
@@ -30,7 +31,14 @@ def chrome_ports():
     Brave -- and matching only the word "chrome" made the tool answer "no editor
     page found" while the page was sitting right there in Brave.
     """
-    out = subprocess.run(["ss", "-lntp"], capture_output=True, text=True).stdout
+    configured = os.environ.get("PIXEL_ROOM_PORT")
+    if configured:
+        return [int(configured)]
+
+    command = ["ss", "-lntp"]
+    if sys.platform == "darwin":
+        command = ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"]
+    out = subprocess.run(command, capture_output=True, text=True).stdout
     ports = []
     for line in out.splitlines():
         if not any(b in line for b in ("chrome", "chromium", "brave")):
@@ -42,6 +50,7 @@ def chrome_ports():
 
 
 def find_page():
+    shell = None
     for port in chrome_ports():
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=2) as r:
@@ -52,12 +61,21 @@ def find_page():
                  if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
         for t in pages:
             if "/room/" in t.get("url", ""):
-                return port, t["webSocketDebuggerUrl"]
+                return port, t["webSocketDebuggerUrl"], False
+            if t.get("title") == "CelestJux Editors":
+                shell = (port, t["webSocketDebuggerUrl"], True)
+    if shell:
+        return shell
     raise SystemExit("no editor page found — is pixelmag's browser open on /room/ ?")
 
 
 async def run(expression):
-    port, ws_url = find_page()
+    port, ws_url, through_shell = find_page()
+    if through_shell and not os.environ.get("PIXEL_ROOM_TOP"):
+        expression = (
+            "document.getElementById('frame-room').contentWindow.eval(%s)"
+            % json.dumps(expression)
+        )
     async with websockets.connect(ws_url, max_size=64 * 1024 * 1024) as ws:
         await ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
             "expression": expression, "returnByValue": True, "awaitPromise": True}}))

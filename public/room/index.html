@@ -268,6 +268,8 @@ var room = null;
 var canvas = document.getElementById("stage");
 var ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
+var poolResortImg = new Image();
+poolResortImg.src = "sprites/pool-resort.gif";
 
 function blankRoom(cols, rows) {
   var map = [];
@@ -449,9 +451,13 @@ function draw() {
   var now = performance.now();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (var y = 0; y < ROWS(); y++)
-    for (var x = 0; x < COLS(); x++)
-      drawTile(room.map[y][x], x * TILE, y * TILE, x, y);
+  if (room.background === "pool-resort" && poolResortImg.complete) {
+    ctx.drawImage(poolResortImg, 0, 0, canvas.width, canvas.height);
+  } else {
+    for (var y = 0; y < ROWS(); y++)
+      for (var x = 0; x < COLS(); x++)
+        drawTile(room.map[y][x], x * TILE, y * TILE, x, y);
+  }
 
   // rugs first, everything else depth-sorted by where it stands
   room.objects.forEach(function (o) {
@@ -1077,8 +1083,8 @@ function loadRoom(data) {
   undoStack = []; redoStack = [];
   selected = null; brush = null;
   document.getElementById("roomName").value = room.name || "untitled";
-  canvas.width = room.grid.cols * TILE;
-  canvas.height = room.grid.rows * TILE;
+  canvas.width = room.canvas ? room.canvas.width : room.grid.cols * TILE;
+  canvas.height = room.canvas ? room.canvas.height : room.grid.rows * TILE;
   ctx.imageSmoothingEnabled = false;
   renderSel(); renderRoster(); renderSteps();
   document.getElementById("hint").innerHTML = HINT;
